@@ -73,14 +73,14 @@ func (d *S3Driver) ChangeDirectory(cc server.ClientContext, directory string) er
 	}
 
 	delimiter := "/"
-	params := &s3.ListObjectsV2Input{
+	params := s3.ListObjectsV2Input{
 		Bucket:    &S3_BUCKET_NAME,
 		Prefix:    &prefix,
 		Delimiter: &delimiter, // limits the search to directories (they have a trailing slash)
 	}
 
 	var resp *s3.ListObjectsV2Output
-	if resp, err = d.s3Client.ListObjectsV2(params); err != nil {
+	if resp, err = d.s3Client.ListObjectsV2(&params); err != nil {
 		return stripNewlines(err)
 	}
 
@@ -122,13 +122,13 @@ func (d *S3Driver) MakeDirectory(cc server.ClientContext, directory string) erro
 		return fmt.Errorf("Directory '%s' has non-existent parent directory: %s", directory, parentKey)
 	}
 
-	params := &s3.PutObjectInput{
+	params := s3.PutObjectInput{
 		Bucket: &S3_BUCKET_NAME,
 		Key:    &s3Key,
 		Body:   bytes.NewReader([]byte("")),
 	}
 
-	if _, err = d.s3Client.PutObject(params); err != nil {
+	if _, err = d.s3Client.PutObject(&params); err != nil {
 		return stripNewlines(err)
 	}
 
@@ -163,7 +163,7 @@ func (d *S3Driver) ListFiles(cc server.ClientContext) ([]os.FileInfo, error) {
 	}
 
 	delimiter := "/" // delimiter keeps the listing from being recursive
-	params := &s3.ListObjectsV2Input{
+	params := s3.ListObjectsV2Input{
 		Bucket:    &S3_BUCKET_NAME,
 		Prefix:    &prefix,
 		Delimiter: &delimiter,
@@ -171,7 +171,7 @@ func (d *S3Driver) ListFiles(cc server.ClientContext) ([]os.FileInfo, error) {
 	}
 
 	var resp *s3.ListObjectsV2Output
-	if resp, err = d.s3Client.ListObjectsV2(params); err != nil {
+	if resp, err = d.s3Client.ListObjectsV2(&params); err != nil {
 		return nil, stripNewlines(err)
 	}
 
@@ -239,12 +239,12 @@ func (d *S3Driver) OpenFile(cc server.ClientContext, path string, flag int) (ser
 }
 
 func (d *S3Driver) getObjectInfo(key string) (*s3.GetObjectOutput, error) {
-	params := &s3.GetObjectInput{
+	params := s3.GetObjectInput{
 		Bucket: &S3_BUCKET_NAME,
 		Key:    &key,
 	}
 
-	req, resp := d.s3Client.GetObjectRequest(params)
+	req, resp := d.s3Client.GetObjectRequest(&params)
 
 	if err := req.Send(); err != nil {
 		return nil, stripNewlines(err)
@@ -327,7 +327,7 @@ func (d *S3Driver) DeleteFile(cc server.ClientContext, path string) error {
 		relPath += "/"
 	}
 
-	listParams := &s3.ListObjectsV2Input{
+	listParams := s3.ListObjectsV2Input{
 		Bucket:  &S3_BUCKET_NAME,
 		Prefix:  &relPath,
 		MaxKeys: &d.maxKeys,
@@ -335,7 +335,7 @@ func (d *S3Driver) DeleteFile(cc server.ClientContext, path string) error {
 	}
 
 	var resp *s3.ListObjectsV2Output
-	if resp, err = d.s3Client.ListObjectsV2(listParams); err != nil {
+	if resp, err = d.s3Client.ListObjectsV2(&listParams); err != nil {
 		return stripNewlines(err)
 	}
 
@@ -348,12 +348,12 @@ func (d *S3Driver) DeleteFile(cc server.ClientContext, path string) error {
 		return fmt.Errorf("No such file or directory: %s [S3 key: %s]", path, relPath)
 	}
 
-	delParams := &s3.DeleteObjectsInput{
+	delParams := s3.DeleteObjectsInput{
 		Bucket: &S3_BUCKET_NAME,
 		Delete: &s3.Delete{Objects: delObjects},
 	}
 
-	if _, err = d.s3Client.DeleteObjects(delParams); err != nil {
+	if _, err = d.s3Client.DeleteObjects(&delParams); err != nil {
 		return stripNewlines(err)
 	}
 
@@ -433,14 +433,14 @@ func (d *S3Driver) RenameFile(cc server.ClientContext, from, to string) error {
 		return fmt.Errorf("Parent directory of destination does not exist: %s. err: %s", parentDir, err)
 	}
 
-	listParams := &s3.ListObjectsV2Input{
+	listParams := s3.ListObjectsV2Input{
 		Bucket:  &S3_BUCKET_NAME,
 		Prefix:  &relFrom,
 		MaxKeys: &d.maxKeys,
 	}
 
 	var resp *s3.ListObjectsV2Output
-	if resp, err = d.s3Client.ListObjectsV2(listParams); err != nil {
+	if resp, err = d.s3Client.ListObjectsV2(&listParams); err != nil {
 		return stripNewlines(err)
 	}
 
@@ -454,19 +454,19 @@ func (d *S3Driver) RenameFile(cc server.ClientContext, from, to string) error {
 
 		toPath := strings.Replace(*objId.Key, relFrom, relTo, 1)
 		copySrc := S3_BUCKET_NAME + "/" + *objId.Key
-		copyParams := &s3.CopyObjectInput{
+		copyParams := s3.CopyObjectInput{
 			Bucket:     &S3_BUCKET_NAME,
 			Key:        &toPath,
 			CopySource: &copySrc,
 		}
 
-		if _, err = d.s3Client.CopyObject(copyParams); err != nil {
+		if _, err = d.s3Client.CopyObject(&copyParams); err != nil {
 			return stripNewlines(err)
 		}
 	}
 
 	// delete original file (or nested directory of matching keys).  Faster than looping over them.
-	delParams := &s3.DeleteObjectsInput{
+	delParams := s3.DeleteObjectsInput{
 		Bucket: &S3_BUCKET_NAME,
 		Delete: &s3.Delete{Objects: srcObjects},
 	}
@@ -475,7 +475,7 @@ func (d *S3Driver) RenameFile(cc server.ClientContext, from, to string) error {
 		return fmt.Errorf("Unable to remove old file: %s [S3 key: %s]", from, relFrom)
 	}
 
-	if _, err = d.s3Client.DeleteObjects(delParams); err != nil {
+	if _, err = d.s3Client.DeleteObjects(&delParams); err != nil {
 		return stripNewlines(err)
 	}
 
@@ -570,7 +570,7 @@ func NewS3Driver(s3Session *session.Session, s3BucketName, rootPrefix string, ft
 		client = s3.New(s3Session)
 	}
 
-	driver := &S3Driver{
+	driver := S3Driver{
 		maxKeys:      10000,
 		s3Client:     client,
 		s3Session:    s3Session,
@@ -581,5 +581,5 @@ func NewS3Driver(s3Session *session.Session, s3BucketName, rootPrefix string, ft
 		ftpPasswd:    ftpPasswd,
 	}
 
-	return driver
+	return &driver
 }

@@ -27,7 +27,7 @@ type S3VirtualFile struct {
 }
 
 func NewS3VirtualFile(path string, flag int, session *session.Session, client *s3.S3) (*S3VirtualFile, error) {
-	f := &S3VirtualFile{
+	f := S3VirtualFile{
 		flag:      flag,
 		s3Path:    path,
 		s3Session: session,
@@ -41,12 +41,12 @@ func NewS3VirtualFile(path string, flag int, session *session.Session, client *s
 	var err error
 	if flag == os.O_RDONLY {
 		// read only doesn't need to modify the file
-		params := &s3.GetObjectInput{
+		params := s3.GetObjectInput{
 			Bucket: &S3_BUCKET_NAME,
 			Key:    &f.s3Path,
 		}
 
-		if f.s3FileOutput, err = f.s3Client.GetObject(params); err != nil {
+		if f.s3FileOutput, err = f.s3Client.GetObject(&params); err != nil {
 			return nil, stripNewlines(err)
 		}
 
@@ -55,12 +55,12 @@ func NewS3VirtualFile(path string, flag int, session *session.Session, client *s
 	} else {
 
 		// use PutObject to create an empty object.  This will report any errors before we write
-		params := &s3.PutObjectInput{
+		params := s3.PutObjectInput{
 			Bucket: &S3_BUCKET_NAME,
 			Key:    &f.s3Path,
 		}
 
-		if _, err := f.s3Client.PutObject(params); err != nil {
+		if _, err := f.s3Client.PutObject(&params); err != nil {
 			return nil, stripNewlines(err)
 		}
 
@@ -73,19 +73,19 @@ func NewS3VirtualFile(path string, flag int, session *session.Session, client *s
 
 			// Using s3manager because PutObject requires a ReadSeeker which we can't have with unbuffered input
 			uploader := s3manager.NewUploader(f.s3Session)
-			upParams := &s3manager.UploadInput{
+			upParams := s3manager.UploadInput{
 				Bucket: &S3_BUCKET_NAME,
 				Key:    &f.s3Path,
 				Body:   f.readPipe,
 			}
 
-			_, err := uploader.Upload(upParams)
+			_, err := uploader.Upload(&upParams)
 			f.uploadErr <- stripNewlines(err)
 
 		}()
 	}
 
-	return f, nil
+	return &f, nil
 }
 
 func (f *S3VirtualFile) Close() error {
